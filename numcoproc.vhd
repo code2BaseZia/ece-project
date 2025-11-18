@@ -127,16 +127,18 @@ architecture rtl of numcoproc is
     signal div_active  : std_logic := '0';
 
     signal sqrt_start  : std_logic := '0';
+    signal sqrt_busy   : std_logic;
     signal sqrt_done   : std_logic;
-    signal sqrt_root   : unsigned(7 downto 0);  -- WIDTH/2 for WIDTH=16
+    signal sqrt_out_u  : unsigned(15 downto 0);
     signal sqrt_active : std_logic := '0';
 
     signal cordic_start  : std_logic := '0';
     signal cordic_busy   : std_logic;
     signal cordic_done   : std_logic;
-    signal cordic_out    : unsigned(15 downto 0);
+    signal cordic_cos_s  : signed(15 downto 0);
+    signal cordic_sin_s  : signed(15 downto 0);
+    signal cordic_valid  : std_logic;
     signal cordic_active : std_logic := '0';
-
 begin
     ----------------------------------------------------------------------
     -- Address decode and IO bus interface
@@ -183,30 +185,32 @@ begin
             remainder => div_r
         );
 
-    -- Unsigned integer square root (WIDTH=16)
-    u_sqrt : entity work.sqrt_unsigned
-        generic map (
-            WIDTH => 16
-        )
+    -- Integer square root unit
+    u_sqrt : entity work.sqrt_unit
         port map (
-            clk   => clock,
-            start => sqrt_start,
-            x     => unsigned(reg_op_a),
-            root  => sqrt_root,
-            done  => sqrt_done
+            clk      => clock,
+            resetn   => resetn,
+            start    => sqrt_start,
+            root_in  => unsigned(reg_op_a),
+            busy     => sqrt_busy,
+            done     => sqrt_done,
+            output   => sqrt_out_u
         );
 
-    -- CORDIC unit (currently single 16-bit output)
+    -- CORDIC unit (sine and cosine outputs)
     u_cordic : entity work.cordic_unit
         port map (
-            clk     => clock,
-            resetn  => resetn,
-            start   => cordic_start,
-            root_in => unsigned(reg_op_a),
-            busy    => cordic_busy,
-            done    => cordic_done,
-            output  => cordic_out
+            clk      => clock,
+            resetn   => resetn,
+            start    => cordic_start,
+            busy     => cordic_busy,
+            done     => cordic_done,
+            theta_in => signed(reg_op_a),
+            cos_out  => cordic_cos_s,
+            sin_out  => cordic_sin_s,
+            valid    => cordic_valid
         );
+
 
     ----------------------------------------------------------------------
     -- Readback mux
@@ -412,19 +416,16 @@ begin
             end if;
 
             if sqrt_done = '1' then
-                reg_sqrt_out           <= (others => '0');
-                reg_sqrt_out(7 downto 0) <= std_logic_vector(sqrt_root);
-                sqrt_active            <= '0';
-                reg_status(ST_BUSY)    <= '0';
-                reg_status(ST_DONE)    <= '1';
+                reg_sqrt_out        <= std_logic_vector(sqrt_out_u);
+                sqrt_active         <= '0';
+                reg_status(ST_BUSY) <= '0';
+                reg_status(ST_DONE) <= '1';
             end if;
 
             if cordic_done = '1' then
-                reg_cordic_sin <= std_logic_vector(cordic_out);
-                reg_cordic_cos <= (others => '0');  -- placeholder
+                reg_cordic_sin <= std_logic_vector(cordic_sin_s);
+                reg_cordic_cos <= std_logic_vector(cordic_cos_s);
                 cordic_active  <= '0';
-                reg_status(ST_BUSY) <= '0';
-                reg_status(ST_DONE) <= '1';
             end if;
 
             ------------------------------------------------------------------
