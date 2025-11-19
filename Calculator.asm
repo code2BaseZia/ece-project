@@ -369,7 +369,7 @@ OP_SUB:
 OP_MULT: 
 	CALL LOAD_ARGS
     LOAD CURR_OP
-    ADDI -5
+    ADDI -4
     JZERO OP_MULTS ; Jump to perform signed multiplication
     LOADI 1
     STORE CURR_CTRL
@@ -385,7 +385,7 @@ OP_MULT_C:
 OP_DIV: 
 	CALL LOAD_ARGS
     LOAD CURR_OP
-    ADDI -9
+    ADDI -8
     JZERO OP_DIVS
     LOADI 3
     STORE CURR_CTRL
